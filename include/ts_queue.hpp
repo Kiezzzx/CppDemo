@@ -9,7 +9,7 @@ class TSQueue {
 public:
     explicit TSQueue(std::size_t cap) : buf_(cap) {}
 
-    // 阻塞 push（满则等）
+    // blocking push
     void push(const T& v) {
         std::unique_lock<std::mutex> lk(m_);
         cv_not_full_.wait(lk, [&]{ return count_ < buf_.size(); });
@@ -18,7 +18,7 @@ public:
         cv_not_empty_.notify_one();
     }
 
-    // 阻塞 pop（空则等）
+    // blocking pop
     T pop() {
         std::unique_lock<std::mutex> lk(m_);
         cv_not_empty_.wait(lk, [&]{ return count_ > 0; });
