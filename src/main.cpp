@@ -65,12 +65,15 @@ void dataProcessorTask() {
             float avgTemp = tempSum / sampleCount;
             
             // Data analysis and output
-            std::cout << "temp=" << data.temperature 
-                      << "degC, avg=" << avgTemp << "degC, samples=" << sampleCount << "\n";
-            
-            // Simple anomaly detection
-            if (data.temperature > 35.0f) {
-                std::cout << "High temperature detected\n";
+            {
+                std::lock_guard<std::mutex> lock(coutMutex);
+                std::cout << "[PROCESSOR] temp=" << data.temperature 
+                          << "degC, avg=" << avgTemp << "degC, samples=" << sampleCount << "\n";
+                
+                // Simple anomaly detection
+                if (data.temperature > 35.0f) {
+                    std::cout << "[WARNING] High temperature detected!\n";
+                }
             }
             
         } catch (...) {
@@ -84,8 +87,11 @@ void ledTask() {
     while (running.load()) {
         tog_bit(GPIO_REG, 0); // Toggle bit 0
         led = !led;
-        std::cout << "[LED] " << (led ? "ON " : "OFF") << " REG=0x" 
-                  << std::hex << GPIO_REG << std::dec << "\n";
+        {
+            std::lock_guard<std::mutex> lock(coutMutex);
+            std::cout << "[LED] " << (led ? "ON " : "OFF") << " REG=0x" 
+                      << std::hex << GPIO_REG << std::dec << "\n";
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(kLedPeriodMs));
     }
 }
