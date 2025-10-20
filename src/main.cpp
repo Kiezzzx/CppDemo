@@ -15,10 +15,13 @@ static constexpr int kRunSeconds = 5;
 static constexpr int kSensorPeriodMs = 200;
 static constexpr int kLedPeriodMs    = 500;
 static constexpr int kQueueCapacity  = 10;  // Queue capacity
+static constexpr float kTempThreshold = 35.0f;  // Temperature threshold
+static constexpr float kTempMin = 20.0f;  // Minimum temperature
+static constexpr float kTempMax = 40.0f;  // Maximum temperature
 static uint32_t GPIO_REG = 0; // Simulated GPIO register
 static std::atomic<bool> running{true};  // Global running flag
 
-// Sensor data structure
+// Sensor data struct
 struct SensorData {
     float temperature;
     std::chrono::steady_clock::time_point timestamp;
@@ -32,18 +35,18 @@ static std::mutex coutMutex;
 
 void sensorTask() {
     std::mt19937 rng{std::random_device{}()};
-    std::uniform_real_distribution<float> dist(20.0f, 40.0f);
+    std::uniform_real_distribution<float> dist(kTempMin, kTempMax);
 
     while (running.load()) {
-        float v = dist(rng);
+        float n = dist(rng);
         
         // Create sensor data and push to queue
-        SensorData data{v, std::chrono::steady_clock::now()};
+        SensorData data{n, std::chrono::steady_clock::now()};
         dataQueue.push(data);
         
         {
             std::lock_guard<std::mutex> lock(coutMutex);
-            std::cout << "[SENSOR] produced temp=" << v << "degC\n";
+            std::cout << "[SENSOR] temp=" << n << "degC\n";
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(kSensorPeriodMs));
     }
@@ -71,7 +74,7 @@ void dataProcessorTask() {
                           << "degC, avg=" << avgTemp << "degC, samples=" << sampleCount << "\n";
                 
                 // Simple anomaly detection
-                if (data.temperature > 35.0f) {
+                if (data.temperature > kTempThreshold) {
                     std::cout << "[WARNING] High temperature detected!\n";
                 }
             }
