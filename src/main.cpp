@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <mutex>
 #include <deque>
+#include <limits>
 #include "../include/bitops.hpp"
 #include "../include/ts_queue.hpp"
 
@@ -60,41 +61,37 @@ void dataProcessorTask() {
     static float windowSum = 0.0f;        
     static int totalSamples = 0;          
     
-    while (running.load()) {
-        try {
-            // Get data from queue
-            SensorData data = dataQueue.pop();
-            totalSamples++;
+    while (true) {
+        SensorData data = dataQueue.pop();
+        if (!running.load()) break;  // Check for exit condition
+        
+        totalSamples++;
+        
+        // Add new temperature to window
+        tempWindow.push_back(data.temperature);
+        windowSum += data.temperature;
+        
+        // Remove oldest value if window is full
+        if (tempWindow.size() > kMovingAvgWindow) {
+            windowSum -= tempWindow.front();
+            tempWindow.pop_front();
+        }
+        
+        // Calculate moving average
+        float movingAvg = windowSum / tempWindow.size();
+        
+        // Data analysis and output
+        {
+            std::lock_guard<std::mutex> lock(coutMutex);
+            std::cout << "[PROCESSOR] temp=" << data.temperature 
+                      << "degC, moving_avg=" << movingAvg 
+                      << "degC, window=" << tempWindow.size()
+                      << ", total=" << totalSamples << "\n";
             
-            // Add new temperature to window
-            tempWindow.push_back(data.temperature);
-            windowSum += data.temperature;
-            
-            // Remove oldest value if window is full
-            if (tempWindow.size() > kMovingAvgWindow) {
-                windowSum -= tempWindow.front();
-                tempWindow.pop_front();
+            // Simple anomaly detection
+            if (data.temperature > kTempThreshold) {
+                std::cout << "[WARNING] High temperature detected!\n";
             }
-            
-            // Calculate moving average
-            float movingAvg = windowSum / tempWindow.size();
-            
-            // Data analysis and output
-            {
-                std::lock_guard<std::mutex> lock(coutMutex);
-                std::cout << "[PROCESSOR] temp=" << data.temperature 
-                          << "degC, moving_avg=" << movingAvg 
-                          << "degC, window=" << tempWindow.size()
-                          << ", total=" << totalSamples << "\n";
-                
-                // Simple anomaly detection
-                if (data.temperature > kTempThreshold) {
-                    std::cout << "[WARNING] High temperature detected!\n";
-                }
-            }
-            
-        } catch (...) {
-            break;
         }
     }
 }
@@ -122,6 +119,9 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(kRunSeconds));
     running.store(false); // Signal all threads to stop
+
+    // Send a sentinel value to wake up the data processor
+    dataQueue.push(SensorData{std::numeric_limits<float>::quiet_NaN(), steady_clock::now()});
 
     std::cout << "\nWaiting for all threads to finish...\n";
     t1.join(); 
