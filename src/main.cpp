@@ -5,6 +5,7 @@
 #include <random>
 #include <cstdint>
 #include <mutex>
+#include <deque>
 #include "../include/bitops.hpp"
 #include "../include/ts_queue.hpp"
 
@@ -14,12 +15,13 @@ using namespace std::chrono;
 static constexpr int kRunSeconds = 5;
 static constexpr int kSensorPeriodMs = 200;
 static constexpr int kLedPeriodMs    = 500;
-static constexpr int kQueueCapacity  = 10;  // Queue capacity
-static constexpr float kTempThreshold = 35.0f;  // Temperature threshold
-static constexpr float kTempMin = 20.0f;  // Minimum temperature
-static constexpr float kTempMax = 40.0f;  // Maximum temperature
-static uint32_t GPIO_REG = 0; // Simulated GPIO register
-static std::atomic<bool> running{true};  // Global running flag
+static constexpr int kQueueCapacity  = 10;  
+static constexpr float kTempThreshold = 35.0f;  
+static constexpr float kTempMin = 20.0f;  
+static constexpr float kTempMax = 40.0f;  
+static constexpr int kMovingAvgWindow = 5;  
+static uint32_t GPIO_REG = 0; 
+static std::atomic<bool> running{true}; 
 
 // Sensor data struct
 struct SensorData {
@@ -54,24 +56,36 @@ void sensorTask() {
 
 // Data processor task (consumer)
 void dataProcessorTask() {
-    static float tempSum = 0.0f;
-    static int sampleCount = 0;
+    static std::deque<float> tempWindow;  // Sliding window for moving average
+    static float windowSum = 0.0f;        
+    static int totalSamples = 0;          
     
     while (running.load()) {
         try {
             // Get data from queue
             SensorData data = dataQueue.pop();
+            totalSamples++;
             
-            // Process data: calculate moving average
-            tempSum += data.temperature;
-            sampleCount++;
-            float avgTemp = tempSum / sampleCount;
+            // Add new temperature to window
+            tempWindow.push_back(data.temperature);
+            windowSum += data.temperature;
+            
+            // Remove oldest value if window is full
+            if (tempWindow.size() > kMovingAvgWindow) {
+                windowSum -= tempWindow.front();
+                tempWindow.pop_front();
+            }
+            
+            // Calculate moving average
+            float movingAvg = windowSum / tempWindow.size();
             
             // Data analysis and output
             {
                 std::lock_guard<std::mutex> lock(coutMutex);
                 std::cout << "[PROCESSOR] temp=" << data.temperature 
-                          << "degC, avg=" << avgTemp << "degC, samples=" << sampleCount << "\n";
+                          << "degC, moving_avg=" << movingAvg 
+                          << "degC, window=" << tempWindow.size()
+                          << ", total=" << totalSamples << "\n";
                 
                 // Simple anomaly detection
                 if (data.temperature > kTempThreshold) {
