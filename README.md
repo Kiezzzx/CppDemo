@@ -1,6 +1,6 @@
 # CppDemo - Multi-threaded Sensor System
 
-A compact C++1 project that simulates a FreeRTOS-style multi-task system on PC, demonstrating task scheduling, thread-safe queues, data processing, and bit-level GPIO control.
+A compact C++17 project that simulates a FreeRTOS-style multi-task system on PC, demonstrating task scheduling, thread-safe queues, data processing, and bit-level GPIO control.
 
 ## Features
 
@@ -35,3 +35,22 @@ src/
 [LED] ON  REG=0x1
 [WARNING] High temperature detected!
 ```
+
+## Learning Objectives
+- Producer-Consumer pattern
+- Thread synchronization
+- Embedded system simulation
+
+## Roadmap
+
+### Current Version (v1.0)
+- Multi-threaded sensor simulation
+- Thread-safe queue implementation
+- Moving average data processing
+- GPIO bit manipulation
+- Graceful shutdown mechanism
+
+### Next Upgrade (v1.1)
+-  **Watchdog Task**: Monitor task health and detect timeouts
+-   System reliability and fault detection
+
